@@ -3,3 +3,4 @@ requests
 google-generativeai
 beautifulsoup4
 pytz
+newspaper3k
