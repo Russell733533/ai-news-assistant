@@ -4,3 +4,4 @@ google-generativeai
 beautifulsoup4
 pytz
 newspaper3k
+lxml_html_clean
