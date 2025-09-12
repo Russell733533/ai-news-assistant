@@ -84,7 +84,7 @@ def summarize_with_gemini(content):
         
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-pro')
+       model = genai.GenerativeModel('gemini-1.0-pro')
         
         # 指导AI进行总结的指令
         prompt = f"请用简体中文，用一句话（不超过50字）精准地总结以下新闻的核心内容，不需要任何多余的开头或结尾：\n\n---\n{content}\n---"
@@ -153,7 +153,8 @@ if __name__ == "__main__":
         exit()
 
     # 1. 获取文章
-    articles = get_unique_articles_from_past_24h(RSS_FEEDS)
+articles = get_unique_articles_from_past_24h(RSS_FEEDS)
+articles = articles[:30] 
     
     if not articles:
         print("💤 今天没有发现新文章，程序结束。")
