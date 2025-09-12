@@ -19,7 +19,6 @@ RSS_FEEDS = {
     "ArXiv CS.AI (Paper)": "http://arxiv.org/rss/cs.AI"
 }
 
-# 每个RSS源最多获取的文章数量
 PER_FEED_LIMIT = 5 
 
 FEISHU_WEBHOOK_URL = os.getenv("FEISHU_WEBHOOK_URL")
@@ -86,12 +85,12 @@ def summarize_with_gemini(content):
         
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.0-pro')
+        # *** 关键修改：使用Google最新的、更强大的模型名称 ***
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         
         prompt = f"请用简体中文，用一句话（不超过50字）精准地总结以下新闻的核心内容，不需要任何多余的开头或结尾：\n\n---\n{content}\n---"
         
         response = model.generate_content(prompt)
-        # 增加一个简单的清洗，去除可能出现的星号
         summary = response.text.strip().replace('*', '')
         return summary
     except Exception as e:
