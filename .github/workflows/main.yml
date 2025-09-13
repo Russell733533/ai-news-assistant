@@ -22,6 +22,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
+      # *** 关键新增步骤：安装Playwright的浏览器 ***
+      - name: Install Playwright Browsers
+        run: python -m playwright install --with-deps chromium
+
       - name: Run Python script
         env:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
