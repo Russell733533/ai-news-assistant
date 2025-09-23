@@ -3,7 +3,7 @@ name: Daily AI News Push
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *' # UTC时间0点，即北京时间早上8点
+    - cron: '0 23 * * *' # UTC时间0点，即北京时间早上8点
 
 jobs:
   build:
