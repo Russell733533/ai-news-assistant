@@ -61,32 +61,23 @@ def get_balanced_articles(feed_urls, limit_per_feed):
     return all_articles
 
 def get_content_with_playwright(url):
-    """
-    终极武器：使用Playwright模拟真人浏览器行为获取正文
-    """
+    """终极武器：使用Playwright模拟真人浏览器行为获取正文"""
     content = None
     print("    - 启动Playwright浏览器...")
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
-            # 伪装成真人浏览器
             page.set_extra_http_headers({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"})
-            page.goto(url, wait_until='domcontentloaded', timeout=30000) # 增加超时时间
-            # 等待页面动态内容加载
+            page.goto(url, wait_until='domcontentloaded', timeout=30000)
             page.wait_for_timeout(3000)
-            
-            # 使用BeautifulSoup解析Playwright加载后的页面内容
             html_content = page.content()
             soup = BeautifulSoup(html_content, 'html.parser')
-            
-            # 优先查找文章核心标签，更精准
             main_content = soup.find('article') or soup.find('main')
             if main_content:
                 paragraphs = main_content.find_all('p')
-            else: # 如果没有核心标签，则全局查找
+            else:
                 paragraphs = soup.find_all('p')
-                
             content = "\n".join([p.get_text() for p in paragraphs if p.get_text()])
             browser.close()
             if content:
@@ -95,7 +86,6 @@ def get_content_with_playwright(url):
                 print("    - Playwright 提取内容为空。")
     except Exception as e:
         print(f"    - Playwright 提取失败: {e}")
-    
     return content[:3000] if content else None
 
 def summarize_with_gemini(content):
@@ -104,7 +94,9 @@ def summarize_with_gemini(content):
         return "无法获取正文，跳过总结。"
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        # *** 关键修改：使用最稳定、不会轻易变更的官方模型名称 ***
+        model = genai.GenerativeModel('gemini-pro')
+        
         prompt = f"请用简体中文，用一句话（不超过60字）精准地总结以下新闻或论文摘要的核心内容，不需要任何多余的开头或结尾：\n\n---\n{content}\n---"
         response = model.generate_content(prompt)
         summary = response.text.strip().replace('*', '')
@@ -114,7 +106,6 @@ def summarize_with_gemini(content):
         return "AI总结失败。"
 
 def send_to_feishu(content):
-    # ... (此函数无需修改，代码省略) ...
     if not content:
         print("内容为空，不发送消息。")
         return
@@ -132,10 +123,8 @@ def send_to_feishu(content):
         else: print(f"❌ 发送飞书失败: {response.status_code}, {response.text}")
     except Exception as e: print(f"❌ 发送飞书时发生网络错误: {e}")
 
-
 # --- 3. 主程序入口 ---
 if __name__ == "__main__":
-    
     if not FEISHU_WEBHOOK_URL or not GEMINI_API_KEY:
         print("🚨 错误：未设置 FEISHU_WEBHOOK_URL 或 GEMINI_API_KEY 环境变量！")
         exit()
@@ -150,18 +139,13 @@ if __name__ == "__main__":
     summaries = []
     for i, article in enumerate(articles):
         print(f"  - ({i+1}/{len(articles)}) 正在处理: {article['title']}")
-        
         summary = ""
-        # *** 终极智能逻辑 ***
-        # 1. ArXiv特殊通道：直接使用自带摘要，不总结
         if 'ArXiv' in article['source'] and article['summary']:
             print("    - 检测到ArXiv链接，直接使用自带摘要。")
             soup = BeautifulSoup(article['summary'], 'html.parser')
             summary = soup.get_text().strip().replace('\n', ' ')
         else:
-            # 2. 其他所有网站，启动终极武器Playwright获取正文
             content = get_content_with_playwright(article['link'])
-            # 3. 将获取到的正文交给AI总结
             summary = summarize_with_gemini(content)
         
         formatted_item = (
@@ -171,7 +155,7 @@ if __name__ == "__main__":
             f"链接: [{article['link']}]({article['link']})\n"
         )
         summaries.append(formatted_item)
-        time.sleep(1) # 每次循环后稍作等待
+        time.sleep(1)
 
     if summaries:
         final_content = "\n---\n\n".join(summaries)
