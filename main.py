@@ -12,15 +12,21 @@ import pytz
 
 # --- 1. 配置区域 ---
 RSS_FEEDS = {
-    "Google News AI (EN)": "https://news.google.com/rss/search?q=Artificial+Intelligence&hl=en-US&gl=US&ceid=US:en",
+    # --- AI 科技新闻 ---
     "TechCrunch AI (EN)": "https://techcrunch.com/category/artificial-intelligence/feed/",
     "量子位 (中文)": "https://www.qbitai.com/feed/",
     "机器之心 (中文)": "https://www.jiqizhixin.com/rss",
+    # --- 顶级国际新闻 ---
+    "Reuters World (EN)": "https://www.reuters.com/world/rss/",
+    "BBC World (EN)": "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "NYT World (EN)": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    # --- 深度与论文 ---
     "MIT Tech Review (EN)": "https://www.technologyreview.com/c/artificial-intelligence/feed/",
     "ArXiv CS.AI (Paper)": "http://arxiv.org/rss/cs.AI"
 }
 
-PER_FEED_LIMIT = 5 
+# 每个RSS源最多获取的文章数量 (调整为3，确保多样性)
+PER_FEED_LIMIT = 3
 FEISHU_WEBHOOK_URL = os.getenv("FEISHU_WEBHOOK_URL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -81,14 +87,11 @@ def summarize_with_gemini(content):
     if not content:
         return "无法获取正文，跳过总结。"
     try:
-        # *** 决定性的最终修改：强制指定使用 v1 API 版本，不再依赖默认行为 ***
-        genai.configure(
-            api_key=GEMINI_API_KEY,
-            client_options={"api_version": "v1"}
-        )
+        # *** 决定性的最终修改：回归最简单、最正确的配置方式 ***
+        genai.configure(api_key=GEMINI_API_KEY)
         
         model = genai.GenerativeModel('gemini-pro')
-        prompt = f"请用简体中文，用一句话（不超过60字）精准地总结以下新闻或论文摘要的核心内容，不需要任何多余的开头或结尾：\n\n---\n{content}\n---"
+        prompt = f"请用简体中文，用一句话（不超过60字）精准地总结以下新闻报道或论文摘要的核心内容，不需要任何多余的开头或结尾：\n\n---\n{content}\n---"
         response = model.generate_content(prompt)
         summary = response.text.strip().replace('*', '')
         return summary
@@ -101,7 +104,7 @@ def send_to_feishu(content):
         print("内容为空，不发送消息。")
         return
     headers = {'Content-Type': 'application/json'}
-    payload = { "msg_type": "interactive", "card": { "header": { "title": { "tag": "plain_text", "content": f"🔔 今日AI新闻摘要 ({datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d')})" }, "template": "blue" }, "elements": [ { "tag": "div", "text": { "tag": "lark_md", "content": content }}, {"tag": "hr"}, { "tag": "note", "elements": [{"tag": "plain_text", "content": "由GitHub Actions + Gemini Pro 驱动"}] } ] } }
+    payload = { "msg_type": "interactive", "card": { "header": { "title": { "tag": "plain_text", "content": f"🔔 今日新闻摘要 ({datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d')})" }, "template": "blue" }, "elements": [ { "tag": "div", "text": { "tag": "lark_md", "content": content }}, {"tag": "hr"}, { "tag": "note", "elements": [{"tag": "plain_text", "content": "由GitHub Actions + Gemini Pro 驱动"}] } ] } }
     try:
         response = requests.post(FEISHU_WEBHOOK_URL, json=payload, headers=headers)
         if response.status_code == 200 and response.json().get("StatusCode") == 0: print("🎉 成功发送消息到飞书！")
