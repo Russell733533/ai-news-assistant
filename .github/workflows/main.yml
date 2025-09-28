@@ -3,7 +3,7 @@ name: Daily AI News Push
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 23 * * *' # UTC时间0点，即北京时间早上8点
+    - cron: '0 23 * * *' # UTC时间23点，即北京时间早上7点
 
 jobs:
   build:
@@ -17,12 +17,13 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      # *** 决定性的修改：强制卸载并进行无缓存的全新安装 ***
+      - name: Force Clean Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip uninstall -y google-generativeai
+          pip install --no-cache-dir -r requirements.txt
       
-      # *** 关键新增步骤：安装Playwright的浏览器 ***
       - name: Install Playwright Browsers
         run: python -m playwright install --with-deps chromium
 
