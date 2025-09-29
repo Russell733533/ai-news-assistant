@@ -3,30 +3,26 @@
 import os
 import feedparser
 import requests
-import google.generativeai as genai
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 import time
 from datetime import datetime, timedelta
 import pytz
+import json
 
 # --- 1. 配置区域 ---
 RSS_FEEDS = {
-    # --- AI 科技新闻 ---
     "TechCrunch AI (EN)": "https://techcrunch.com/category/artificial-intelligence/feed/",
     "量子位 (中文)": "https://www.qbitai.com/feed/",
     "机器之心 (中文)": "https://www.jiqizhixin.com/rss",
-    # --- 顶级国际新闻 ---
     "Reuters World (EN)": "https://www.reuters.com/world/rss/",
     "BBC World (EN)": "http://feeds.bbci.co.uk/news/world/rss.xml",
     "NYT World (EN)": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-    # --- 深度与论文 ---
     "MIT Tech Review (EN)": "https://www.technologyreview.com/c/artificial-intelligence/feed/",
     "ArXiv CS.AI (Paper)": "http://arxiv.org/rss/cs.AI"
 }
 
-# 每个RSS源最多获取的文章数量 (调整为3，确保多样性)
-PER_FEED_LIMIT = 3
+PER_FEED_LIMIT = 4
 FEISHU_WEBHOOK_URL = os.getenv("FEISHU_WEBHOOK_URL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -83,20 +79,35 @@ def get_content_with_playwright(url):
         print(f"    - Playwright 提取失败: {e}")
     return content[:3000] if content else None
 
-def summarize_with_gemini(content):
+def summarize_with_gemini_direct(content, api_key):
+    """
+    决定性方案：不再使用google库，直接通过requests手动调用v1 API。
+    """
     if not content:
         return "无法获取正文，跳过总结。"
+    
+    # 强制使用 v1 版本的官方API入口
+    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={api_key}"
+    headers = {'Content-Type': 'application/json'}
+    prompt = f"请用简体中文，用一句话（不超过60字）精准地总结以下新闻报道或论文摘要的核心内容，不需要任何多余的开头或结尾：\n\n---\n{content}\n---"
+    data = {"contents": [{"parts": [{"text": prompt}]}]}
+
     try:
-        # *** 决定性的最终修改：回归最简单、最正确的配置方式 ***
-        genai.configure(api_key=GEMINI_API_KEY)
-        
-        model = genai.GenerativeModel('gemini-pro')
-        prompt = f"请用简体中文，用一句话（不超过60字）精准地总结以下新闻报道或论文摘要的核心内容，不需要任何多余的开头或结尾：\n\n---\n{content}\n---"
-        response = model.generate_content(prompt)
-        summary = response.text.strip().replace('*', '')
-        return summary
+        response = requests.post(api_url, headers=headers, data=json.dumps(data), timeout=30)
+        response.raise_for_status() # 如果请求失败 (如 4xx, 5xx 错误), 则会抛出异常
+        response_json = response.json()
+        summary = response_json['candidates'][0]['content']['parts'][0]['text']
+        return summary.strip().replace('*', '')
+    except requests.exceptions.RequestException as e:
+        print(f"    - Gemini API请求失败 (网络层面): {e}")
+        if e.response is not None:
+            print(f"    - 响应内容: {e.response.text}")
+        return "AI总结失败。"
+    except (KeyError, IndexError) as e:
+        print(f"    - 解析Gemini API响应失败: {e}, 响应内容: {response.text}")
+        return "AI总结失败。"
     except Exception as e:
-        print(f"    - Gemini API调用失败: {e}")
+        print(f"    - 调用Gemini API时发生未知错误: {e}")
         return "AI总结失败。"
 
 def send_to_feishu(content):
@@ -131,7 +142,8 @@ if __name__ == "__main__":
             summary = soup.get_text().strip().replace('\n', ' ')
         else:
             content = get_content_with_playwright(article['link'])
-            summary = summarize_with_gemini(content)
+            # *** 关键修改：调用我们自己编写的、绝对可靠的API函数 ***
+            summary = summarize_with_gemini_direct(content, GEMINI_API_KEY)
         formatted_item = ( f"**{article['title']}**\n" f"> **摘要**: {summary}\n" f"来源: {article['source']}\n" f"链接: [{article['link']}]({article['link']})\n" )
         summaries.append(formatted_item)
         time.sleep(1)
