@@ -81,20 +81,22 @@ def get_content_with_playwright(url):
 
 def summarize_with_gemini_direct(content, api_key):
     """
-    决定性方案：不再使用google库，直接通过requests手动调用v1 API。
+    决定性方案：直接通过requests手动调用v1 API，并使用官方推荐的最新模型名称。
     """
     if not content:
         return "无法获取正文，跳过总结。"
     
-    # 强制使用 v1 版本的官方API入口
-    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={api_key}"
+    # *** 决定性的最终修改：使用官方推荐的、更现代的模型名称 ***
+    model_name = "gemini-1.5-flash-latest"
+    api_url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={api_key}"
+    
     headers = {'Content-Type': 'application/json'}
     prompt = f"请用简体中文，用一句话（不超过60字）精准地总结以下新闻报道或论文摘要的核心内容，不需要任何多余的开头或结尾：\n\n---\n{content}\n---"
     data = {"contents": [{"parts": [{"text": prompt}]}]}
 
     try:
         response = requests.post(api_url, headers=headers, data=json.dumps(data), timeout=30)
-        response.raise_for_status() # 如果请求失败 (如 4xx, 5xx 错误), 则会抛出异常
+        response.raise_for_status()
         response_json = response.json()
         summary = response_json['candidates'][0]['content']['parts'][0]['text']
         return summary.strip().replace('*', '')
@@ -142,7 +144,6 @@ if __name__ == "__main__":
             summary = soup.get_text().strip().replace('\n', ' ')
         else:
             content = get_content_with_playwright(article['link'])
-            # *** 关键修改：调用我们自己编写的、绝对可靠的API函数 ***
             summary = summarize_with_gemini_direct(content, GEMINI_API_KEY)
         formatted_item = ( f"**{article['title']}**\n" f"> **摘要**: {summary}\n" f"来源: {article['source']}\n" f"链接: [{article['link']}]({article['link']})\n" )
         summaries.append(formatted_item)
